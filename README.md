@@ -1,128 +1,168 @@
+# AuthAI
 
-# AuthAI - Real-Time Behavioral Biometrics Authentication System
+**Real-time behavioral biometrics for bot detection: it watches how a user moves, types, and switches windows, and classifies the behavior as Person or Robot with a trained ML model.**
 
-🔒 **An Advanced Authentication System with Real-time Behavioral Monitoring**
+![Python](https://img.shields.io/badge/Python-3.8%2B-3776AB?logo=python&logoColor=white)
+![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B?logo=streamlit&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/ML-scikit--learn%20%7C%20XGBoost%20%7C%20Keras-orange)
+![MongoDB](https://img.shields.io/badge/MongoDB-optional%20auth-47A248?logo=mongodb&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-blue)
 
-AuthAI combines behavioral biometrics with traditional authentication to provide a comprehensive security solution. The system monitors user behavior patterns in real-time to detect potential bot activities and unauthorized access attempts.
+## Preview
 
-## 🌟 Features
+![AuthAI real-time monitoring dashboard](https://github.com/user-attachments/assets/45911486-e54a-4a96-961e-f24d5b4c9274)
 
-### Authentication System
-- **User Registration & Login**: Secure user account creation and authentication
-- **MongoDB Integration**: Robust user data storage with bcrypt password hashing
-- **Session Management**: Secure session handling with automatic logout
-- **User Profile Management**: Profile viewing and password change functionality
+---
 
-### Behavioral Biometrics Monitoring
-- **Real-time Monitoring**: Continuous behavioral pattern analysis
-- **Machine Learning Detection**: Multiple ML models for bot detection
-- **Interactive Dashboard**: Live visualization of behavioral metrics
-- **Bot Simulation**: Built-in bot simulator for testing
+## Overview
 
-### Security Features
-- **Password Encryption**: Bcrypt hashing for secure password storage
-- **Unique Constraints**: Username and email uniqueness enforcement
-- **Session Security**: Automatic session cleanup on logout
-- **Authentication Guards**: Protected routes and functionality
+Passwords alone say nothing about *who* is behind the keyboard. AuthAI adds a behavioral layer: it captures mouse, keyboard, and window-switching activity in real time, turns it into a small set of features over a sliding window, and asks a trained model whether the behavior looks human or automated.
 
-## 📁 Project Structure
+The project ships as a Streamlit dashboard with live charts, a built-in bot simulator for testing the detector, and an optional MongoDB-backed login/signup layer. Everything runs locally.
 
+## Key Features
+
+**Behavioral monitoring**
+- Real-time capture of mouse movement, typing activity, tab/window switching, click frequency, and correction (backspace) rate
+- Features computed over a 30-second sliding window; predictions refreshed every 2 seconds
+- Live **Person / Robot** classification with a confidence score
+
+**Machine learning**
+- Loads trained models from `models/` and automatically selects the best-performing available model
+- Supports Random Forest, XGBoost, Isolation Forest, and (when TensorFlow is installed) LSTM / Transformer / Autoencoder models
+- Model benchmark results kept in `models/model_comparison_results.csv`
+
+**Dashboard and testing**
+- Streamlit dashboard with a prediction timeline and one time-series chart per behavioral feature
+- Built-in **bot simulator** (15 seconds of rapid mouse movement, clicking, and typing) to see the detector flag automated behavior
+- Every detection is appended to `detections_log.csv` for later analysis
+
+**Authentication (optional, off by default)**
+- User registration and login backed by MongoDB
+- Passwords hashed with bcrypt; unique username and email constraints
+- Session state and protected-route guards in Streamlit, profile view, and password change
+
+## How It Works
+
+1. **Capture**: monitors keyboard and mouse events while the app runs.
+2. **Feature computation**: aggregates events over a 30-second sliding window.
+3. **Prediction**: feeds the features to the selected trained model.
+4. **Display**: updates the dashboard every 2 seconds and keeps a prediction history for trend analysis.
+5. **Logging**: appends results to `detections_log.csv`.
+
+### Features fed to the model
+
+| Feature | Unit |
+|---|---|
+| Mouse speed | pixels / second |
+| Typing speed | keys / minute |
+| Tab switch rate | per minute |
+| Mouse click rate | per minute |
+| Keyboard error rate | % |
+| Active window duration | seconds |
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Input[Keyboard and mouse events] --> Core[authai_core.py<br/>capture and feature computation]
+    Sim[Bot simulator] -.-> Input
+    Core --> Window[30-second sliding window<br/>6 behavioral features]
+    Window --> Model[Trained model<br/>from models/]
+    Model --> UI[Streamlit dashboard<br/>Person / Robot + confidence]
+    Model --> Log[(detections_log.csv)]
+    UI -.-> Auth[user_auth.py + auth_pages.py<br/>optional login]
+    Auth -.-> DB[(MongoDB users collection)]
 ```
+
+| Component | Responsibility |
+|---|---|
+| `authai_streamlit_app.py` | Streamlit GUI: sidebar controls, live metrics, charts |
+| `authai_core.py` | Behavioral monitoring, feature computation, bot simulation |
+| `models/` | Trained model files (`.joblib`, `.keras`) and comparison results |
+| `user_auth.py`, `auth_pages.py` | Optional MongoDB authentication and login/signup pages |
+| `setup_database.py` | Tests the MongoDB connection and creates demo users |
+
+## Technology Stack
+
+| Area | Technology |
+|---|---|
+| Language | Python 3.8+ |
+| UI | Streamlit |
+| Classical ML | scikit-learn (Random Forest, Isolation Forest), XGBoost, joblib |
+| Deep learning | TensorFlow / Keras (LSTM, Transformer, Autoencoder) |
+| Database (optional) | MongoDB |
+| Password hashing (optional) | bcrypt |
+
+## Engineering Highlights
+
+- **Sliding-window feature engineering.** Raw input events become six normalized behavioral features over a 30-second window, refreshed every 2 seconds. This keeps predictions responsive without reacting to single events.
+- **Pluggable model layer.** The app discovers whatever trained models are in `models/` and picks the best performer, so classical and neural models can be swapped without changing the UI code.
+- **Built-in adversarial test harness.** The bot simulator generates automated-looking input so the full pipeline (capture, features, model, dashboard) can be verified end to end.
+- **Local-only processing with an audit trail.** No behavioral data leaves the machine; each detection is logged to CSV.
+- **Authentication as an opt-in module.** MongoDB, bcrypt hashing, unique constraints, and route guards are isolated in their own modules, so the monitor runs with no database at all.
+
+## Project Structure
+
+```text
 Auth ai/
-├── authai_streamlit_app.py    # Main Streamlit application with auth
-├── authai_core.py             # Core behavioral monitoring system
-├── user_auth.py               # MongoDB user authentication module
-├── auth_pages.py              # Authentication UI pages (login/signup)
-├── setup_database.py          # Database setup and testing script
+├── authai_streamlit_app.py    # Main Streamlit application
+├── authai_core.py             # Behavioral monitoring, features, bot simulator
+├── user_auth.py               # MongoDB user authentication (optional)
+├── auth_pages.py              # Login / signup UI (optional)
+├── setup_database.py          # MongoDB setup and demo users (optional)
 ├── requirements.txt           # Python dependencies
-├── models/                    # ML models directory
-│   ├── *.keras               # Neural network models
-│   ├── *.joblib              # Scikit-learn models
-│   └── model_comparison_results.csv
-└── README.md                  # This file
+├── detections_log.csv         # Created automatically at runtime
+└── models/
+    ├── *.joblib               # scikit-learn / XGBoost models
+    ├── *.keras                # Neural network models
+    └── model_comparison_results.csv
 ```
 
-## 🚀 Quick Start
-
-### No-Auth Mode (Default in this repo)
-- This project is configured to run WITHOUT any login/authentication screens.
-- MongoDB is NOT required in no-auth mode.
-
-Steps:
-1. Install dependencies
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. Run the app
-   ```bash
-   streamlit run authai_streamlit_app.py
-   ```
-3. Open the browser and use the dashboard directly (you will see "Guest" as the user).
+## Getting Started
 
 ### Prerequisites
 
-1. **Python 3.8+** installed
-2. (Optional) **MongoDB** if you re-enable authentication.
-   - For no-auth mode, you can ignore MongoDB entirely.
+- Python 3.8+
+- Trained model files in `models/` (for example `rf_model.joblib`, `xgb_model.joblib`, `iso_model.joblib`)
+- Permission for the app to monitor keyboard and mouse events (on Windows you may need to run as administrator)
+- MongoDB, only if you re-enable authentication
 
-### Installation
+### Install and run
 
-1. **Install Dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+```bash
+pip install -r requirements.txt
+streamlit run authai_streamlit_app.py
+```
 
-2. (Optional) Setup Database (only if you plan to re-enable auth)
-   ```bash
-   python setup_database.py
-   ```
-   This will test MongoDB and create demo users. Not needed in no-auth mode.
+Open `http://localhost:8501`, then:
 
-3. **Run the Application**
-   ```bash
-   streamlit run authai_streamlit_app.py
-   ```
+1. Click **Initialize System** in the sidebar to load the model.
+2. Click **Start Monitor** to begin tracking.
+3. Use your computer normally and watch the live prediction, or click **Run Bot Simulator** to see automated behavior get flagged. Move the mouse to the top-left corner to abort the simulation early.
 
-### Test Credentials (Auth mode only)
+By default the app runs in **no-auth mode**: there is no login screen and the dashboard shows the user as "Guest".
 
-If you re-enable auth and run `setup_database.py`, you can use these test accounts:
+### Optional: authentication with MongoDB
 
-| Username  | Password | Role     |
-|-----------|----------|---------|
-| admin     | admin123 | Admin    |
-| testuser  | test123  | User     |
-| demo_user | demo123  | Demo     |
+If you re-enable the login layer, start MongoDB and verify the connection and seed demo accounts:
 
-## 🎯 How to Use
+```bash
+python setup_database.py
+```
 
-### 1. First Time Setup (No-Auth Mode)
-1. Navigate to `http://localhost:8501`
-2. Click "Initialize System" in the sidebar to load models
-3. Click "Start Monitor" to begin
+Connection settings are constants at the top of `user_auth.py`:
 
-### 2. Login Process
-No login in no-auth mode.
+```python
+MONGODB_URI = "mongodb://localhost:27017/"
+DATABASE_NAME = "authai_db"
+COLLECTION_NAME = "users"
+```
 
-### 3. Dashboard Features
-- **User Info**: Shows "Guest" user
-- **Reset**: Clears the current session state
-- **AuthAI Monitoring**: Real-time behavioral analysis
-
-### 4. AuthAI Monitoring
-1. Click "Initialize System" to load ML models
-2. Click "Start Monitor" to begin behavior tracking
-3. Use "Run Bot Simulator" to test detection
-4. View real-time charts and metrics
-
-## 🛠 Technical Details
-
-### Database Schema
-
-The MongoDB `users` collection contains:
+Stored user document:
 
 ```javascript
 {
-  "_id": ObjectId,
   "username": String (unique),
   "email": String (unique),
   "password_hash": String (bcrypt),
@@ -132,235 +172,53 @@ The MongoDB `users` collection contains:
 }
 ```
 
-### Authentication Flow
+## Security and Privacy
 
-1. **Registration**: 
-   - Validates input fields
-   - Checks for existing users
-   - Hashes password with bcrypt
-   - Stores user in MongoDB
-
-2. **Login**:
-   - Verifies credentials
-   - Updates last login timestamp
-   - Creates session state
-   - Redirects to dashboard
-
-3. **Session Management**:
-   - Maintains user state in Streamlit
-   - Protects authenticated routes
-   - Cleans up on logout
-
-### Behavioral Monitoring
-
-The system tracks:
-- **Mouse Movement**: Speed and patterns
-- **Keyboard Activity**: Typing speed and errors
-- **Window Focus**: Application switching behavior
-- **Click Patterns**: Mouse click frequency
-- **Error Rates**: Backspace/correction usage
-
-## 📊 Machine Learning Models
-
-Supported model types:
-- **Random Forest**: Tree-based ensemble method
-- **XGBoost**: Gradient boosting framework
-- **Neural Networks**: LSTM and Transformer models
-- **Isolation Forest**: Anomaly detection
-- **Autoencoder**: Deep learning anomaly detection
-
-## 🔧 Configuration
-
-### MongoDB Configuration
-
-Edit `user_auth.py` to modify database settings:
-
-```python
-MONGODB_URI = "mongodb://localhost:27017/"  # MongoDB connection
-DATABASE_NAME = "authai_db"                # Database name
-COLLECTION_NAME = "users"                  # Collection name
-```
-
-### Security Settings
-
-- **Password Minimum Length**: 6 characters
-- **Session Timeout**: Based on Streamlit session
-- **Unique Constraints**: Username and email
-- **Password Hashing**: bcrypt with salt
-
-## 🚨 Troubleshooting
-
-### MongoDB Connection Issues
-
-1. **Check MongoDB Service**:
-   ```bash
-   net start MongoDB  # Windows
-   sudo systemctl start mongod  # Linux
-   ```
-
-2. **Verify Connection**:
-   ```bash
-   mongosh
-   ```
-
-3. **Check Firewall**: Ensure port 27017 is accessible
-
-### Authentication Issues
-
-- **Clear Browser Cache**: Sometimes sessions persist
-- **Check Database**: Verify user exists in MongoDB
-- **Password Issues**: Ensure correct password is used
-- **Session State**: Restart Streamlit app if needed
-
-### Model Loading Issues
-
-- **Check Models Directory**: Ensure ML models are present
-- **Dependencies**: Verify TensorFlow/Scikit-learn installation
-- **File Permissions**: Check read permissions on model files
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🔮 Future Enhancements
-
-- [ ] Password reset functionality
-- [ ] Email verification
-- [ ] Role-based access control
-- [ ] Multi-factor authentication
-- [ ] Advanced behavioral analytics
-- [ ] Cloud deployment support
-- [ ] API endpoints
-- [ ] Mobile app integration
-
-## 📞 Support
-
-For support and questions:
-- Check the troubleshooting section
-- Review MongoDB documentation
-- Open an issue on GitHub
-
----
-
-**AuthAI** - Securing the future with intelligent behavioral authentication 🛡️
-
-# AuthAI Real-Time Monitor
-
-A real-time behavioral biometrics authentication system with interactive GUI built using Streamlit.
-
-## Features
-
-- **Real-time monitoring**: Captures mouse movements, keyboard activity, and window switching behavior
-- **Live predictions**: Displays whether the system thinks the user is a Person or Robot
-- **Bot simulation**: Built-in bot simulator to test the detection capabilities
-- **Interactive dashboard**: Real-time charts and metrics
-- **Model flexibility**: Supports multiple ML models (RandomForest, XGBoost, IsolationForest, etc.)
-
-## Setup
-
-1. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **Ensure you have trained models**:
-   - The application expects trained models in the `models/` folder
-   - Supported model files: `rf_model.joblib`, `xgb_model.joblib`, `iso_model.joblib`
-
-## Running the Application
-
-1. **Start the Streamlit app**:
-   ```bash
-   streamlit run authai_streamlit_app.py
-   ```
-
-2. **Use the interface**:
-   - Click "🚀 Initialize System" in the sidebar to load the trained model
-   - Click "▶️ Start Monitor" to begin real-time monitoring
-   - Use your computer normally - the system will capture behavioral features
-   - Click "🤖 Run Bot Simulator" to simulate bot behavior and see how it gets detected
-
-## GUI Components
-
-### Main Dashboard
-- **System Status**: Shows whether monitoring is active
-- **Current Prediction**: Real-time Person/Robot classification
-- **Confidence Score**: Model prediction confidence
-- **Feature Values**: Current behavioral biometric features:
-  - Mouse speed (pixels/second)
-  - Typing speed (keys/minute)
-  - Tab switch rate (/minute)
-  - Mouse click rate (/minute)
-  - Keyboard error rate (%)
-  - Active window duration (seconds)
-
-### Real-Time Charts
-- **Prediction Timeline**: Shows predictions and confidence scores over time
-- **Feature Charts**: Individual time-series plots for each behavioral feature
-
-### Bot Simulation
-- Simulates abnormal behavior patterns that should be flagged as "Robot"
-- Runs for 15 seconds with rapid mouse movements, clicking, and typing
-- Move mouse to top-left corner to abort simulation early
-
-## How It Works
-
-1. **Feature Capture**: Monitors user interaction patterns in real-time
-2. **Feature Computation**: Calculates behavioral metrics over a sliding window (30 seconds)
-3. **Model Prediction**: Uses trained ML model to classify behavior as Person or Robot
-4. **Real-Time Display**: Updates GUI every 2 seconds with latest predictions
-5. **Historical Tracking**: Maintains history of predictions for trend analysis
-
-## Model Information
-
-The application automatically selects the best performing model from available trained models:
-- **RandomForest**: Tree-based ensemble method
-- **XGBoost**: Gradient boosting classifier  
-- **IsolationForest**: Unsupervised anomaly detection
-- **Neural Networks**: LSTM/Transformer models (if TensorFlow is available)
-
-## Privacy & Permissions
-
-- The application needs permission to monitor keyboard and mouse events
-- No personal data is transmitted - all processing happens locally
-- Detection logs are saved to `detections_log.csv` for analysis
+- Behavioral processing happens locally; no personal data is transmitted.
+- Passwords are stored as bcrypt hashes with salt; usernames and emails are unique; minimum password length is 6 characters.
+- Sessions live in Streamlit session state and are cleaned up on logout; authenticated pages are guarded.
+- The demo accounts created by `setup_database.py` are for local testing only and should not be used outside a development setup.
 
 ## Troubleshooting
 
-- **Permission errors**: Run as administrator on Windows if needed
-- **Import errors**: Make sure all dependencies are installed
-- **Model not found**: Ensure trained models exist in the `models/` folder
-- **Slow performance**: Reduce detection interval or window size in the code
+| Problem | Fix |
+|---|---|
+| Permission errors | Run as administrator (Windows) so input events can be monitored |
+| Import errors | Reinstall with `pip install -r requirements.txt` |
+| Model not found | Confirm trained models exist in `models/` |
+| Neural models not loading | Check the TensorFlow installation |
+| Slow performance | Reduce the detection interval or window size in the code |
+| MongoDB connection fails | Check the service (`sudo systemctl start mongod` / `net start MongoDB`), `mongosh`, and port 27017 |
 
-## Files
+## Roadmap
 
-- `authai_streamlit_app.py`: Main Streamlit GUI application
-- `authai_core.py`: Core AuthAI monitoring and simulation classes
-- `requirements.txt`: Python dependencies
-- `models/`: Directory containing trained ML models
-- `detections_log.csv`: Log file of all detections (created automatically)
+**Implemented:** real-time monitoring, multi-model detection, live dashboard, bot simulator, CSV detection log, optional MongoDB login/signup with bcrypt.
 
-## Screenshot
+**Potential improvements:**
+- Password reset and email verification
+- Role-based access control and multi-factor authentication
+- Deeper behavioral analytics
+- REST API endpoints
+- Cloud deployment support
+- Mobile integration
 
-<img width="1915" height="863" alt="Screenshot 2025-08-29 003859" src="https://github.com/user-attachments/assets/45911486-e54a-4a96-961e-f24d5b4c9274" />
-<img width="1912" height="868" alt="Screenshot 2025-08-29 003917" src="https://github.com/user-attachments/assets/9809cbe0-5046-4002-9e0a-6975c15347ce" />
-<img width="1918" height="872" alt="Screenshot 2025-08-29 004023" src="https://github.com/user-attachments/assets/a7df0ed6-c3f1-4ce6-b7c6-ed076d8686e7" />
+## UI Gallery
 
+| Dashboard | Live monitoring | Detection view |
+|---|---|---|
+| ![AuthAI dashboard, view 1](https://github.com/user-attachments/assets/45911486-e54a-4a96-961e-f24d5b4c9274) | ![AuthAI dashboard, view 2](https://github.com/user-attachments/assets/9809cbe0-5046-4002-9e0a-6975c15347ce) | ![AuthAI dashboard, view 3](https://github.com/user-attachments/assets/a7df0ed6-c3f1-4ce6-b7c6-ed076d8686e7) |
 
-## contact me-
-priyanshu345kumar@gmail.com
+## Contributing
 
-Made with ❤️ and some coffee
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/your-feature`)
+3. Commit your changes
+4. Push the branch and open a Pull Request
 
+## Author
 
-=======
-# AuthAi
->>>>>>> be41e88489690cb18ced8aabf3a2ae4604c89d8d
+Contact: [priyanshu345kumar@gmail.com](mailto:priyanshu345kumar@gmail.com)
+
+## License
+
+Released under the MIT License. See the `LICENSE` file for details.
